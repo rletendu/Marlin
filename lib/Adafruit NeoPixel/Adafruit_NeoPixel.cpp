@@ -49,7 +49,8 @@
 //and enter full path to this file below
 
 //#include <replace with path to Delay.h file>
-#include <..\..\..\..\Marlin\src\HAL\shared\Delay.h>
+//#include <..\..\..\..\Marlin\src\HAL\shared\Delay.h>
+#include <../../../../Marlin/src/HAL/shared/Delay.h>
 
 #ifdef TARGET_LPC1768
   #include <time.h>
