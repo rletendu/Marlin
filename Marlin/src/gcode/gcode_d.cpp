@@ -30,6 +30,8 @@
   #include "../HAL/shared/eeprom_if.h"
   #include "../HAL/shared/Delay.h"
 
+  extern void dump_delay_accuracy_check();
+
   /**
    * Dn: G-code for development and testing
    *
@@ -54,9 +56,7 @@
           size_t total = persistentStore.capacity();
           int pos = 0;
           const uint8_t value = 0x0;
-          while(total--) {
-            persistentStore.write_data(pos, &value, 1);
-          }
+          while (total--) persistentStore.write_data(pos, &value, 1);
           persistentStore.access_finish();
         #else
           settings.reset();
@@ -70,7 +70,7 @@
         uint8_t *pointer = parser.hex_adr_val('A');
         uint16_t len = parser.ushortval('C', 1);
         uintptr_t addr = (uintptr_t)pointer;
-        NOMORE(addr, (size_t)(SRAM_SIZE - 1));
+        NOMORE(addr, size_t(SRAM_SIZE - 1));
         NOMORE(len, SRAM_SIZE - addr);
         if (parser.seenval('X')) {
           // Write the hex bytes after the X
@@ -91,16 +91,13 @@
           uint8_t *pointer = parser.hex_adr_val('A');
           uint16_t len = parser.ushortval('C', 1);
           uintptr_t addr = (uintptr_t)pointer;
-          #ifndef MARLIN_EEPROM_SIZE
-            #define MARLIN_EEPROM_SIZE size_t(E2END + 1)
-          #endif
-          NOMORE(addr, (size_t)(MARLIN_EEPROM_SIZE - 1));
-          NOMORE(len, MARLIN_EEPROM_SIZE - addr);
+          NOMORE(addr, size_t(persistentStore.capacity() - 1));
+          NOMORE(len, persistentStore.capacity() - addr);
           if (parser.seenval('X')) {
             uint16_t val = parser.hex_val('X');
             #if ENABLED(EEPROM_SETTINGS)
               persistentStore.access_start();
-              while(len--) {
+              while (len--) {
                 int pos = 0;
                 persistentStore.write_data(pos, (uint8_t *)&val, sizeof(val));
               }
@@ -111,23 +108,18 @@
             #endif
           }
           else {
-            while (len--) {
-              // Read bytes from EEPROM
-              #if ENABLED(EEPROM_SETTINGS)
-                persistentStore.access_start();
-                uint8_t val;
-                while(len--) {
-                  int pos = 0;
-                  if (!persistentStore.read_data(pos, (uint8_t *)&val, sizeof(val))) {
-                    print_hex_byte(val);
-                  }
-                }
-                SERIAL_EOL();
-                persistentStore.access_finish();
-              #else
-                SERIAL_ECHOLNPGM("NO EEPROM");
-              #endif
-            }
+            // Read bytes from EEPROM
+            #if ENABLED(EEPROM_SETTINGS)
+              persistentStore.access_start();
+              int pos = 0;
+              uint8_t val;
+              while (len--) if (!persistentStore.read_data(pos, &val, 1)) print_hex_byte(val);
+              SERIAL_EOL();
+              persistentStore.access_finish();
+            #else
+              SERIAL_ECHOLNPGM("NO EEPROM");
+              len = 0;
+            #endif
             SERIAL_EOL();
           }
         } break;
@@ -151,12 +143,12 @@
         }
       } break;
 
-      case 5: { // D4 Read / Write onboard Flash
+      case 5: { // D5 Read / Write onboard Flash
         #define FLASH_SIZE 1024
         uint8_t *pointer = parser.hex_adr_val('A');
         uint16_t len = parser.ushortval('C', 1);
         uintptr_t addr = (uintptr_t)pointer;
-        NOMORE(addr, (size_t)(FLASH_SIZE - 1));
+        NOMORE(addr, size_t(FLASH_SIZE - 1));
         NOMORE(len, FLASH_SIZE - addr);
         if (parser.seenval('X')) {
           // TODO: Write the hex bytes after the X
@@ -171,6 +163,10 @@
           SERIAL_EOL();
         }
       } break;
+
+      case 6: // D6 Check delay loop accuracy
+        dump_delay_accuracy_check();
+      break;
 
       case 100: { // D100 Disable heaters and attempt a hard hang (Watchdog Test)
         SERIAL_ECHOLNPGM("Disabling heaters and attempting to trigger Watchdog");
